@@ -1,0 +1,8 @@
+﻿Django>=4.2
+mysqlclient
+djangorestframework
+django-cors-headers
+drf-yasg
+django-environ
+celery
+pika
