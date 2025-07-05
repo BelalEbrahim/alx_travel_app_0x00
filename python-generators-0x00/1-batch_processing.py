@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Fetch users in batches and filter by age > 25 using generators.
+Batch processing: stream users in batches and return a generator for users over 25.
 """
 from seed import connect_to_prodev
 
 def stream_users_in_batches(batch_size):
-    """Yield successive batches of users from the database."""
+    """Yield lists of rows in batches."""
     conn = connect_to_prodev()
     cursor = conn.cursor(dictionary=True)
     offset = 0
@@ -23,13 +23,15 @@ def stream_users_in_batches(batch_size):
     conn.close()
 
 def batch_processing(batch_size):
-    """Generator: yield users older than 25 by streaming in batches."""
-    for batch in stream_users_in_batches(batch_size):  # loop 1
-        for user in batch:  # loop 2
-            if user['age'] > 25:
-                yield user  # use yield instead of print
+    """Return a generator filtering users older than 25."""
+    # Use return with a generator expression
+    return (
+        user
+        for batch in stream_users_in_batches(batch_size)
+        for user in batch
+        if user['age'] > 25
+    )
 
 if __name__ == '__main__':
-    # Example usage: print users >25 in batches of 50
     for user in batch_processing(50):
         print(user)
