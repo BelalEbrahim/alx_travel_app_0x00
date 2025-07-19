@@ -1,202 +1,328 @@
-# Python Context Managers & Async Operations (0x02)
+# Unittests and Integration Tests Project (0x03)
 
-This consolidated guide includes **all Python code** and **step-by-step instructions** to set up and run the **python-context-async-operations-0x02** project in **VS Code**. You'll implement class‐based context managers and asynchronous database queries with **SQLite**.
+This guide includes all **unit** and **integration** test files using `unittest`, `unittest.mock`, and `parameterized` for the **0x03-Unittests\_and\_integration\_tests** directory.
 
 ---
 
 ## Directory Structure
 
 ```
-python-context-async-operations-0x02/
-├── 0-databaseconnection.py
-├── 1-execute.py
-├── 3-concurrent.py
-├── users.db          # SQLite database file with `users` table
+0x03-Unittests_and_integration_tests/
+├── client.py
+├── fixtures.py
+├── utils.py
+├── test_utils.py
+├── test_client.py
 └── README.md
 ```
 
 ---
 
-## 1. Prerequisites & Environment Setup
-
-1. **Install Python 3.8+**: [https://python.org](https://python.org)
-2. **Install VS Code**: [https://code.visualstudio.com/](https://code.visualstudio.com/)
-3. **Create (and activate) a virtual environment** (optional but recommended):
-
-   ```powershell
-   python -m venv venv
-   .\venv\Scripts\activate
-   ```
-4. **Install `aiosqlite`** for async support:
-
-   ```powershell
-   pip install aiosqlite
-   ```
-5. **Ensure `users.db`** exists with a `users` table and sample data.
-
-   In VS Code terminal:
-
-   ```powershell
-   sqlite3 users.db
-   ```
-
-   Then:
-
-   ```sql
-   CREATE TABLE users (
-     id INTEGER PRIMARY KEY,
-     name TEXT NOT NULL,
-     age INTEGER NOT NULL
-   );
-   INSERT INTO users (name, age) VALUES
-     ('Alice', 30), ('Bob', 45), ('Carol', 22);
-   .quit
-   ```
-
----
-
-## 2. `0-databaseconnection.py`
+## 1. `test_utils.py`
 
 ```python
-import sqlite3
+#!/usr/bin/env python3
+"""
+Unit tests for utils module: access_nested_map, get_json, memoize.
+"""
+import unittest
+from utils import access_nested_map, get_json, memoize
+from parameterized import parameterized
+from unittest.mock import patch
 
-class DatabaseConnection:
-    """Context manager for SQLite DB connections."""
-    def __init__(self, db_path):
-        self.db_path = db_path
+class TestAccessNestedMap(unittest.TestCase):
+    """Tests for access_nested_map"""
 
-    def __enter__(self):
-        self.conn = sqlite3.connect(self.db_path)
-        return self.conn
+    @parameterized.expand([
+        ({{"a": 1}}, ("a",), 1),
+        ({{"a": {{"b": 2}}}}, ("a",), {{"b": 2}}),
+        ({{"a": {{"b": 2}}}}, ("a", "b"), 2),
+    ])
+    def test_access_nested_map(self, nested_map, path, expected):
+        self.assertEqual(access_nested_map(nested_map, path), expected)
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.conn.close()
+    @parameterized.expand([
+        ({}, ("a",)),
+        ({{"a": 1}}, ("a", "b")),
+    ])
+    def test_access_nested_map_exception(self, nested_map, path):
+        with self.assertRaises(KeyError) as context:
+            access_nested_map(nested_map, path)
+        self.assertEqual(str(context.exception), repr(path[-1]))
 
+class TestGetJson(unittest.TestCase):
+    """Tests for get_json"""
+
+    @parameterized.expand([
+        ("http://example.com", {{"payload": True}}),
+        ("http://holberton.io", {{"payload": False}}),
+    ])
+    @patch('utils.requests.get')
+    def test_get_json(self, url, payload, mock_get):
+        mock_get.return_value.json.return_value = payload
+        result = get_json(url)
+        mock_get.assert_called_once_with(url)
+        self.assertEqual(result, payload)
+
+class TestMemoize(unittest.TestCase):
+    """Tests for memoize decorator"""
+
+    def test_memoize(self):
+        class TestClass:
+            def a_method(self):
+                return 42
+
+            @memoize
+            def a_property(self):
+                return self.a_method()
+
+        obj = TestClass()
+        with patch.object(TestClass, 'a_method', return_value=42) as mock_method:
+            self.assertEqual(obj.a_property, 42)
+            self.assertEqual(obj.a_property, 42)
+            mock_method.assert_called_once()
 
 if __name__ == '__main__':
-    # Use DatabaseConnection to fetch all users
-    with DatabaseConnection('users.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users")
-        results = cursor.fetchall()
-        print(results)
+    unittest.main()
 ```
-
-**Task 0**: Implements a class‐based context manager via `__enter__` and `__exit__`.
 
 ---
 
-## 3. `1-execute.py`
+## 2. `test_client.py`
 
 ```python
-import sqlite3
+#!/usr/bin/env python3
+"""
+Unit and integration tests for client.GithubOrgClient
+"""
+import unittest
+from client import GithubOrgClient
+from fixtures import TEST_PAYLOAD
+from parameterized import parameterized, parameterized_class
+from unittest.mock import patch, PropertyMock
 
-class ExecuteQuery:
-    """Context manager that executes a SQL query and returns results."""
-    def __init__(self, db_path, query, params=()):
-        self.db_path = db_path
-        self.query = query
-        self.params = params
+class TestGithubOrgClient(unittest.TestCase):
+    """Unit tests for GithubOrgClient methods"""
 
-    def __enter__(self):
-        self.conn = sqlite3.connect(self.db_path)
-        self.cursor = self.conn.cursor()
-        self.cursor.execute(self.query, self.params)
-        return self.cursor.fetchall()
+    @parameterized.expand([
+        ('google',),
+        ('abc',),
+    ])
+    @patch('client.get_json')
+    def test_org(self, org_name, mock_get_json):
+        mock_get_json.return_value = {'repos_url': 'url'}
+        client = GithubOrgClient(org_name)
+        self.assertEqual(client.org, mock_get_json.return_value)
+        mock_get_json.assert_called_once_with(
+            GithubOrgClient.ORG_URL.format(org=org_name)
+        )
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.conn.close()
+    def test_public_repos_url(self):
+        client = GithubOrgClient('org')
+        with patch.object(
+            GithubOrgClient,
+            'org',
+            new_callable=PropertyMock,
+            return_value={'repos_url': 'my_url'}
+        ):
+            self.assertEqual(client._public_repos_url, 'my_url')
 
+    @patch('client.get_json')
+    def test_public_repos(self, mock_get_json):
+        test_payload = [
+            {'name': 'repo1', 'license': {'key': 'k1'}},
+            {'name': 'repo2', 'license': {'key': 'k2'}},
+        ]
+        mock_get_json.return_value = test_payload
+        client = GithubOrgClient('org')
+        with patch.object(
+            GithubOrgClient,
+            '_public_repos_url',
+            new_callable=PropertyMock,
+            return_value='url'
+        ):
+            repos = client.public_repos()
+            self.assertEqual(repos, ['repo1', 'repo2'])
+            mock_get_json.assert_called_once_with('url')
+
+    @parameterized.expand([
+        ({'license': {'key': 'my_license'}}, 'my_license', True),
+        ({'license': {'key': 'other'}}, 'my_license', False),
+    ])
+    def test_has_license(self, repo, license_key, expected):
+        self.assertEqual(
+            GithubOrgClient.has_license(repo, license_key),
+            expected
+        )
+
+@parameterized_class(*TEST_PAYLOAD)
+class TestIntegrationGithubOrgClient(unittest.TestCase):
+    """Integration tests using fixtures"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.get_patcher = patch('client.get_json')
+        mock_get = cls.get_patcher.start()
+        mock_get.side_effect = [cls.org_payload, cls.repos_payload]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.get_patcher.stop()
+
+    def test_public_repos(self):
+        client = GithubOrgClient('org')
+        self.assertEqual(
+            client.public_repos(),
+            self.expected_repos
+        )
+
+    def test_public_repos_with_license(self):
+        client = GithubOrgClient('org')
+        self.assertEqual(
+            client.public_repos(license='apache-2.0'),
+            self.apache2_repos
+        )
 
 if __name__ == '__main__':
-    # Fetch users older than 25 using ExecuteQuery
-    with ExecuteQuery('users.db', "SELECT * FROM users WHERE age > ?", (25,)) as results:
-        print(results)
+    unittest.main()
 ```
 
-**Task 1**: A reusable query context manager combining connection handling and query execution.
+python
+\#!/usr/bin/env python3
+"""
+Unit and integration tests for client.GithubOrgClient
+"""
+import unittest
+from client import GithubOrgClient
+from utils import get\_json, access\_nested\_map
+from fixtures import TEST\_PAYLOAD
+from parameterized import parameterized, parameterized\_class
+from unittest.mock import patch, PropertyMock
 
----
+class TestGithubOrgClient(unittest.TestCase):
+"""Unit tests for GithubOrgClient methods"""
 
-## 4. `3-concurrent.py`
-
-```python
-import asyncio
-import aiosqlite
-
-async def async_fetch_users():
-    async with aiosqlite.connect('users.db') as db:
-        cursor = await db.execute("SELECT * FROM users")
-        rows = await cursor.fetchall()
-        await cursor.close()
-        return rows
-
-async def async_fetch_older_users():
-    async with aiosqlite.connect('users.db') as db:
-        cursor = await db.execute("SELECT * FROM users WHERE age > ?", (40,))
-        rows = await cursor.fetchall()
-        await cursor.close()
-        return rows
-
-async def fetch_concurrently():
-    # Run both queries at once
-    users, older = await asyncio.gather(
-        async_fetch_users(),
-        async_fetch_older_users()
+```
+@parameterized.expand([
+    ('google',),
+    ('abc',),
+])
+@patch('client.get_json')
+def test_org(self, org_name, mock_get_json):
+    mock_get_json.return_value = {{'repos_url': 'url'}}
+    client = GithubOrgClient(org_name)
+    self.assertEqual(client.org, mock_get_json.return_value)
+    mock_get_json.assert_called_once_with(
+        GithubOrgClient.ORG_URL.format(org=org_name)
     )
-    print('All users:', users)
-    print('Users > 40:', older)
 
-if __name__ == '__main__':
-    asyncio.run(fetch_concurrently())
+def test_public_repos_url(self):
+    client = GithubOrgClient('org')
+    with patch.object(
+        GithubOrgClient,
+        'org',
+        new_callable=PropertyMock,
+        return_value={{'repos_url': 'my_url'}}
+    ):
+        self.assertEqual(client._public_repos_url, 'my_url')
+
+@patch('client.get_json')
+def test_public_repos(self, mock_get_json):
+    test_payload = [
+        {{'name': 'repo1', 'license': {{'key': 'k1'}}}},
+        {{'name': 'repo2', 'license': {{'key': 'k2'}}}},
+    ]
+    mock_get_json.return_value = test_payload
+    client = GithubOrgClient('org')
+    with patch.object(
+        GithubOrgClient,
+        '_public_repos_url',
+        new_callable=PropertyMock,
+        return_value='url'
+    ):
+        repos = client.public_repos()
+        self.assertEqual(repos, ['repo1', 'repo2'])
+        mock_get_json.assert_called_once_with('url')
+
+@parameterized.expand([
+    ({{'license': {{'key': 'my_license'}}}}, 'my_license', True),
+    ({{'license': {{'key': 'other'}}}}, 'my_license', False),
+])
+def test_has_license(self, repo, license_key, expected):
+    self.assertEqual(
+        GithubOrgClient.has_license(repo, license_key),
+        expected
+    )
 ```
 
-**Task 2**: Uses `asyncio` and `aiosqlite` to perform concurrent database queries with `asyncio.gather()`.
+@parameterized\_class(\*TEST\_PAYLOAD)
+class TestIntegrationGithubOrgClient(unittest.TestCase):
+"""Integration tests using fixtures"""
 
----
+```
+@classmethod
+def setUpClass(cls):
+    cls.get_patcher = patch('client.get_json')
+    mock_get = cls.get_patcher.start()
+    # side effect: first call returns org_payload, second returns repos_payload
+    mock_get.side_effect = [cls.org_payload, cls.repos_payload]
 
-## 5. `README.md`
+@classmethod
+def tearDownClass(cls):
+    cls.get_patcher.stop()
 
-````markdown
-# Python Context Managers & Async Operations (0x02)
+def test_public_repos(self):
+    client = GithubOrgClient('org')
+    self.assertEqual(
+        client.public_repos(),
+        self.expected_repos
+    )
 
-**Project Duration**: Jul 7 – Jul 14 2025
+def test_public_repos_with_license(self):
+    client = GithubOrgClient('org')
+    self.assertEqual(
+        client.public_repos(license='apache-2.0'),
+        self.apache2_repos
+    )
+```
 
-Master Python context managers and asynchronous database operations:
+if **name** == '**main**':
+unittest.main()
 
-## Setup Steps
-1. Clone this directory into VS Code.
-2. (Optional) Activate virtualenv: `venv\Scripts\activate`.
-3. Install dependencies: `pip install aiosqlite`.
-4. Ensure `users.db` has a `users` table (see instructions above).
-
-## Running Tasks
-
-- **Task 0** (Context Manager):
-  ```bash
-  python 0-databaseconnection.py
 ````
 
-* **Task 1** (ExecuteQuery):
-
-  ```bash
-  python 1-execute.py
-  ```
-
-* **Task 2** (Async Queries):
-
-  ```bash
-  python 3-concurrent.py
-  ```
-
-## Manual QA Review
-
-Request a manual QA review when all tasks run successfully. An auto-review will also run at the deadline (Jul 14 2025 01:00 AM).
-
-```
-
 ---
 
-**Ready for manual QA review** when you’ve verified each script’s output. Let me know if any adjustments are needed!  
+## 3. `README.md`
+```markdown
+# Unittests and Integration Tests (0x03)
 
+## Setup
+
+Ensure you have Python 3.7+ on Ubuntu 18.04 and install dependencies:
+
+```bash
+pip install requests parameterized
+````
+
+## Running Unit Tests
+
+```bash
+python3 -m unittest test_utils.py
+python3 -m unittest test_client.py
+```
+
+## Project Requirements
+
+* Files must be executable and start with `#!/usr/bin/env python3`
+* Use `pycodestyle` (v2.5) for style compliance
+* All modules, classes, and functions must have docstrings
+* All functions and coroutines are type-annotated
+
+## Structure
+
+* `utils.py`, `client.py`, `fixtures.py`: source modules
+* `test_utils.py`, `test_client.py`: test suites
+
+```
 ```
