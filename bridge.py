@@ -1,517 +1,210 @@
-# Unittests and Integration Tests Project (0x03)
+# Django Messaging API Project
 
-This guide includes all **unit** and **integration** test files using `unittest`, `unittest.mock`, and `parameterized` for the **0x03-Unittests\_and\_integration\_tests** directory.
+This guide covers all steps and code files for building a robust messaging API with Django and Django REST Framework.
 
 ---
 
 ## Directory Structure
 
 ```
-0x03-Unittests_and_integration_tests/
-├── client.py
-├── fixtures.py
-├── utils.py
-├── #!/usr/bin/env python3
-"""
-Unit tests for utils module: access_nested_map, get_json, memoize.
-"""
-
-import unittest
-from parameterized import parameterized
-from unittest.mock import patch
-
-from utils import access_nested_map, get_json, memoize
-
-
-
-class TestAccessNestedMap(unittest.TestCase):
-    """Tests for access_nested_map"""
-
-
-    @parameterized.expand([
-        ({'a': 1}, ('a',), 1),
-        ({'a': {'b': 2}}, ('a',), {'b': 2}),
-        ({'a': {'b': 2}}, ('a', 'b'), 2),
-    ])
-    def test_access_nested_map(self, nested_map, path, expected):
-        self.assertEqual(access_nested_map(nested_map, path), expected)
-
-
-    @parameterized.expand([
-        ({}, ('a',)),
-        ({'a': 1}, ('a', 'b')),
-    ])
-    def test_access_nested_map_exception(self, nested_map, path):
-        with self.assertRaises(KeyError) as context:
-            access_nested_map(nested_map, path)
-        self.assertEqual(str(context.exception), repr(path[-1]))
-
-
-
-class TestGetJson(unittest.TestCase):
-    """Tests for get_json"""
-
-
-    @parameterized.expand([
-        ('http://example.com', {'payload': True}),
-        ('http://holberton.io', {'payload': False}),
-    ])
-    @patch('utils.requests.get')
-    def test_get_json(self, url, payload, mock_get):
-        mock_get.return_value.json.return_value = payload
-        result = get_json(url)
-        mock_get.assert_called_once_with(url)
-        self.assertEqual(result, payload)
-
-
-
-class TestMemoize(unittest.TestCase):
-    """Tests for memoize decorator"""
-
-
-    def test_memoize(self):
-        class TestClass:
-            """TestClass for memoize"""
-
-            def a_method(self):
-                return 42
-
-            @memoize
-            def a_property(self):
-                return self.a_method()
-
-        obj = TestClass()
-        with patch.object(TestClass, 'a_method', return_value=42) as mock_method:
-            self.assertEqual(obj.a_property, 42)
-            self.assertEqual(obj.a_property, 42)
-            mock_method.assert_called_once()
-
-├── test_client.py
+messaging_app/
+├── manage.py
+├── messaging_app/
+│   ├── __init__.py
+│   ├── settings.py
+│   ├── urls.py
+│   ├── wsgi.py
+│   └── asgi.py
+├── chats/
+│   ├── __init__.py
+│   ├── apps.py
+│   ├── models.py
+│   ├── serializers.py
+│   ├── views.py
+│   ├── urls.py
+│   └── migrations/
+│       └── __init__.py
 └── README.md
 ```
 
 ---
 
-## 1. `test_utils.py`
+## 0. Project Setup
+
+**1.** Create virtualenv and install dependencies:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install django djangorestframework
+```
+
+**2.** Scaffold project and app:
+
+```bash
+django-admin startproject messaging_app .
+python manage.py startapp chats
+```
+
+**3.** In `messaging_app/settings.py`, add to INSTALLED\_APPS:
 
 ```python
-#!/usr/bin/env python3
-"""
-Unit tests for utils module: access_nested_map, get_json, memoize.
-"""
-import unittest
-from utils import access_nested_map, get_json, memoize
-from parameterized import parameterized
-from unittest.mock import patch
-
-class TestAccessNestedMap(unittest.TestCase):
-    """Tests for access_nested_map"""
-
-    @parameterized.expand([
-        ({{"a": 1}}, ("a",), 1),
-        ({{"a": {{"b": 2}}}}, ("a",), {{"b": 2}}),
-        ({{"a": {{"b": 2}}}}, ("a", "b"), 2),
-    ])
-    def test_access_nested_map(self, nested_map, path, expected):
-        self.assertEqual(access_nested_map(nested_map, path), expected)
-
-    @parameterized.expand([
-        ({}, ("a",)),
-        ({{"a": 1}}, ("a", "b")),
-    ])
-    def test_access_nested_map_exception(self, nested_map, path):
-        with self.assertRaises(KeyError) as context:
-            access_nested_map(nested_map, path)
-        self.assertEqual(str(context.exception), repr(path[-1]))
-
-class TestGetJson(unittest.TestCase):
-    """Tests for get_json"""
-
-    @parameterized.expand([
-        ("http://example.com", {{"payload": True}}),
-        ("http://holberton.io", {{"payload": False}}),
-    ])
-    @patch('utils.requests.get')
-    def test_get_json(self, url, payload, mock_get):
-        mock_get.return_value.json.return_value = payload
-        result = get_json(url)
-        mock_get.assert_called_once_with(url)
-        self.assertEqual(result, payload)
-
-class TestMemoize(unittest.TestCase):
-    """Tests for memoize decorator"""
-
-    def test_memoize(self):
-        class TestClass:
-            def a_method(self):
-                return 42
-
-            @memoize
-            def a_property(self):
-                return self.a_method()
-
-        obj = TestClass()
-        with patch.object(TestClass, 'a_method', return_value=42) as mock_method:
-            self.assertEqual(obj.a_property, 42)
-            self.assertEqual(obj.a_property, 42)
-            mock_method.assert_called_once()
-
-if __name__ == '__main__':
-    unittest.main()
+INSTALLED_APPS = [
+    ...,
+    'rest_framework',
+    'chats',
+]
 ```
 
 ---
 
-## 2. `test_client.py`
+## 1. Define Data Models (`chats/models.py`)
 
-````python
-#!/usr/bin/env python3
-"""
-Unit and integration tests for client.GithubOrgClient
-"""
-
-import unittest
-from client import GithubOrgClient
-from fixtures import TEST_PAYLOAD
-from parameterized import parameterized, parameterized_class
-from unittest.mock import patch, PropertyMock
-
-
-class TestGithubOrgClient(unittest.TestCase):
-    """Unit tests for GithubOrgClient methods"""
-
-
-    @parameterized.expand([
-        ('google',),
-        ('abc',),
-    ])
-    @patch('client.get_json')
-    def test_org(self, org_name, mock_get_json):
-        """Test that org property calls get_json with correct URL"""
-        mock_get_json.return_value = {'repos_url': 'url'}
-        client = GithubOrgClient(org_name)
-        self.assertEqual(client.org, mock_get_json.return_value)
-        mock_get_json.assert_called_once_with(
-            GithubOrgClient.ORG_URL.format(org=org_name)
-        )
-
-
-    def test_public_repos_url(self):
-        """Test that _public_repos_url returns org['repos_url']"""
-        client = GithubOrgClient('org')
-        with patch.object(
-            GithubOrgClient,
-            'org',
-            new_callable=PropertyMock,
-            return_value={'repos_url': 'my_url'}
-        ):
-            self.assertEqual(client._public_repos_url, 'my_url')
-
-
-    @patch('client.get_json')
-    def test_public_repos(self, mock_get_json):
-        """Test public_repos returns list of repo names"""
-        payload = [
-            {'name': 'repo1', 'license': {'key': 'k1'}},
-            {'name': 'repo2', 'license': {'key': 'k2'}},
-        ]
-        mock_get_json.return_value = payload
-        client = GithubOrgClient('org')
-        with patch.object(
-            GithubOrgClient,
-            '_public_repos_url',
-            new_callable=PropertyMock,
-            return_value='url'
-        ):
-            repos = client.public_repos()
-            self.assertEqual(repos, ['repo1', 'repo2'])
-            mock_get_json.assert_called_once_with('url')
-
-
-    @parameterized.expand([
-        ({'license': {'key': 'my_license'}}, 'my_license', True),
-        ({'license': {'key': 'other'}}, 'my_license', False),
-    ])
-    def test_has_license(self, repo, license_key, expected):
-        """Test has_license static method"""
-        self.assertEqual(
-            GithubOrgClient.has_license(repo, license_key),
-            expected
-        )
-
-
-@parameterized_class(('org_payload', 'repos_payload', 'expected_repos', 'apache2_repos'), TEST_PAYLOAD)
-class TestIntegrationGithubOrgClient(unittest.TestCase):
-    """Integration tests using fixtures"""
-
-
-    @classmethod
-    def setUpClass(cls):
-        """Set up patcher for get_json and define side effects"""
-        cls.get_patcher = patch('client.get_json')
-        mock_get = cls.get_patcher.start()
-        mock_get.side_effect = [cls.org_payload, cls.repos_payload]
-
-
-    @classmethod
-    def tearDownClass(cls):
-        """Stop get_json patcher"""
-        cls.get_patcher.stop()
-
-
-    def test_public_repos(self):
-        """Test that public_repos returns expected repositories"""
-        client = GithubOrgClient('org')
-        self.assertEqual(
-            client.public_repos(),
-            self.expected_repos
-        )
-
-
-    def test_public_repos_with_license(self):
-        """Test public_repos with license filter"""
-        client = GithubOrgClient('org')
-        self.assertEqual(
-            client.public_repos(license='apache-2.0'),
-            self.apache2_repos
-        )
-
-
-if __name__ == '__main__':
-    unittest.main()
 ```python
-#!/usr/bin/env python3
-"""
-Unit and integration tests for client.GithubOrgClient
-"""
-import unittest
-from client import GithubOrgClient
-from fixtures import TEST_PAYLOAD
-from parameterized import parameterized, parameterized_class
-from unittest.mock import patch, PropertyMock
+from django.db import models
+import uuid
+from django.contrib.auth.models import AbstractUser
 
-class TestGithubOrgClient(unittest.TestCase):
-    """Unit tests for GithubOrgClient methods"""
-
-    @parameterized.expand([
-        ('google',),
-        ('abc',),
-    ])
-    @patch('client.get_json')
-    def test_org(self, org_name, mock_get_json):
-        mock_get_json.return_value = {'repos_url': 'url'}
-        client = GithubOrgClient(org_name)
-        self.assertEqual(client.org, mock_get_json.return_value)
-        mock_get_json.assert_called_once_with(
-            GithubOrgClient.ORG_URL.format(org=org_name)
-        )
-
-    def test_public_repos_url(self):
-        client = GithubOrgClient('org')
-        with patch.object(
-            GithubOrgClient,
-            'org',
-            new_callable=PropertyMock,
-            return_value={'repos_url': 'my_url'}
-        ):
-            self.assertEqual(client._public_repos_url, 'my_url')
-
-    @patch('client.get_json')
-    def test_public_repos(self, mock_get_json):
-        test_payload = [
-            {'name': 'repo1', 'license': {'key': 'k1'}},
-            {'name': 'repo2', 'license': {'key': 'k2'}},
-        ]
-        mock_get_json.return_value = test_payload
-        client = GithubOrgClient('org')
-        with patch.object(
-            GithubOrgClient,
-            '_public_repos_url',
-            new_callable=PropertyMock,
-            return_value='url'
-        ):
-            repos = client.public_repos()
-            self.assertEqual(repos, ['repo1', 'repo2'])
-            mock_get_json.assert_called_once_with('url')
-
-    @parameterized.expand([
-        ({'license': {'key': 'my_license'}}, 'my_license', True),
-        ({'license': {'key': 'other'}}, 'my_license', False),
-    ])
-    def test_has_license(self, repo, license_key, expected):
-        self.assertEqual(
-            GithubOrgClient.has_license(repo, license_key),
-            expected
-        )
-
-@parameterized_class(*TEST_PAYLOAD)
-class TestIntegrationGithubOrgClient(unittest.TestCase):
-    """Integration tests using fixtures"""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.get_patcher = patch('client.get_json')
-        mock_get = cls.get_patcher.start()
-        mock_get.side_effect = [cls.org_payload, cls.repos_payload]
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.get_patcher.stop()
-
-    def test_public_repos(self):
-        client = GithubOrgClient('org')
-        self.assertEqual(
-            client.public_repos(),
-            self.expected_repos
-        )
-
-    def test_public_repos_with_license(self):
-        client = GithubOrgClient('org')
-        self.assertEqual(
-            client.public_repos(license='apache-2.0'),
-            self.apache2_repos
-        )
-
-if __name__ == '__main__':
-    unittest.main()
-````
-
-python
-\#!/usr/bin/env python3
-"""
-Unit and integration tests for client.GithubOrgClient
-"""
-import unittest
-from client import GithubOrgClient
-from utils import get\_json, access\_nested\_map
-from fixtures import TEST\_PAYLOAD
-from parameterized import parameterized, parameterized\_class
-from unittest.mock import patch, PropertyMock
-
-class TestGithubOrgClient(unittest.TestCase):
-"""Unit tests for GithubOrgClient methods"""
-
-```
-@parameterized.expand([
-    ('google',),
-    ('abc',),
-])
-@patch('client.get_json')
-def test_org(self, org_name, mock_get_json):
-    mock_get_json.return_value = {{'repos_url': 'url'}}
-    client = GithubOrgClient(org_name)
-    self.assertEqual(client.org, mock_get_json.return_value)
-    mock_get_json.assert_called_once_with(
-        GithubOrgClient.ORG_URL.format(org=org_name)
-    )
-
-def test_public_repos_url(self):
-    client = GithubOrgClient('org')
-    with patch.object(
-        GithubOrgClient,
-        'org',
-        new_callable=PropertyMock,
-        return_value={{'repos_url': 'my_url'}}
-    ):
-        self.assertEqual(client._public_repos_url, 'my_url')
-
-@patch('client.get_json')
-def test_public_repos(self, mock_get_json):
-    test_payload = [
-        {{'name': 'repo1', 'license': {{'key': 'k1'}}}},
-        {{'name': 'repo2', 'license': {{'key': 'k2'}}}},
+class User(AbstractUser):
+    user_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField(unique=True)
+    phone_number = models.CharField(max_length=20, null=True)
+    ROLE_CHOICES = [
+        ('guest', 'Guest'),
+        ('host', 'Host'),
+        ('admin', 'Admin'),
     ]
-    mock_get_json.return_value = test_payload
-    client = GithubOrgClient('org')
-    with patch.object(
-        GithubOrgClient,
-        '_public_repos_url',
-        new_callable=PropertyMock,
-        return_value='url'
-    ):
-        repos = client.public_repos()
-        self.assertEqual(repos, ['repo1', 'repo2'])
-        mock_get_json.assert_called_once_with('url')
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
 
-@parameterized.expand([
-    ({{'license': {{'key': 'my_license'}}}}, 'my_license', True),
-    ({{'license': {{'key': 'other'}}}}, 'my_license', False),
-])
-def test_has_license(self, repo, license_key, expected):
-    self.assertEqual(
-        GithubOrgClient.has_license(repo, license_key),
-        expected
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username']
+
+class Conversation(models.Model):
+    conversation_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    participants = models.ManyToManyField(User, related_name='conversations')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class Message(models.Model):
+    message_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    conversation = models.ForeignKey(
+        Conversation, on_delete=models.CASCADE, related_name='messages'
     )
+    sender = models.ForeignKey(User, on_delete=models.CASCADE)
+    message_body = models.TextField()
+    sent_at = models.DateTimeField(auto_now_add=True)
 ```
-
-@parameterized\_class(\*TEST\_PAYLOAD)
-class TestIntegrationGithubOrgClient(unittest.TestCase):
-"""Integration tests using fixtures"""
-
-```
-@classmethod
-def setUpClass(cls):
-    cls.get_patcher = patch('client.get_json')
-    mock_get = cls.get_patcher.start()
-    # side effect: first call returns org_payload, second returns repos_payload
-    mock_get.side_effect = [cls.org_payload, cls.repos_payload]
-
-@classmethod
-def tearDownClass(cls):
-    cls.get_patcher.stop()
-
-def test_public_repos(self):
-    client = GithubOrgClient('org')
-    self.assertEqual(
-        client.public_repos(),
-        self.expected_repos
-    )
-
-def test_public_repos_with_license(self):
-    client = GithubOrgClient('org')
-    self.assertEqual(
-        client.public_repos(license='apache-2.0'),
-        self.apache2_repos
-    )
-```
-
-if **name** == '**main**':
-unittest.main()
-
-````
 
 ---
 
-## 3. `README.md`
-```markdown
-# Unittests and Integration Tests (0x03)
+## 2. Create Serializers (`chats/serializers.py`)
 
-## Setup
+```python
+from rest_framework import serializers
+from .models import User, Conversation, Message
 
-Ensure you have Python 3.7+ on Ubuntu 18.04 and install dependencies:
+class MessageSerializer(serializers.ModelSerializer):
+    sender = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = Message
+        fields = ['message_id', 'sender', 'message_body', 'sent_at']
+
+class ConversationSerializer(serializers.ModelSerializer):
+    participants = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=User.objects.all()
+    )
+    messages = MessageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Conversation
+        fields = ['conversation_id', 'participants', 'created_at', 'messages']
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['user_id', 'username', 'email', 'phone_number', 'role', 'created_at']
+```
+
+---
+
+## 3. Build API Endpoints (`chats/views.py`)
+
+```python
+from rest_framework import viewsets, status
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from .models import Conversation, Message
+from .serializers import ConversationSerializer, MessageSerializer
+
+class ConversationViewSet(viewsets.ModelViewSet):
+    queryset = Conversation.objects.all()
+    serializer_class = ConversationSerializer
+
+    @action(detail=True, methods=['post'])
+    def add_message(self, request, pk=None):
+        conversation = self.get_object()
+        serializer = MessageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(
+            conversation=conversation,
+            sender=request.user
+        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+class MessageViewSet(viewsets.ModelViewSet):
+    queryset = Message.objects.all()
+    serializer_class = MessageSerializer
+```
+
+---
+
+## 4. URL Routing
+
+**`chats/urls.py`**:
+
+```python
+from rest_framework.routers import DefaultRouter
+from .views import ConversationViewSet, MessageViewSet
+
+router = DefaultRouter()
+router.register(r'conversations', ConversationViewSet, basename='conversation')
+router.register(r'messages', MessageViewSet, basename='message')
+
+urlpatterns = router.urls
+```
+
+**`messaging_app/urls.py`**:
+
+```python
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('api/', include('chats.urls')),
+]
+```
+
+---
+
+## 5. Run & Test
 
 ```bash
-pip install requests parameterized
-````
-
-## Running Unit Tests
-
-```bash
-python3 -m unittest test_utils.py
-python3 -m unittest test_client.py
+python manage.py makemigrations
+python manage.py migrate
+python manage.py runserver
 ```
 
-## Project Requirements
+Use Postman or cURL to test:
 
-* Files must be executable and start with `#!/usr/bin/env python3`
-* Use `pycodestyle` (v2.5) for style compliance
-* All modules, classes, and functions must have docstrings
-* All functions and coroutines are type-annotated
+* `POST /api/conversations/` to create
+* `GET /api/conversations/` to list
+* `POST /api/conversations/{id}/add_message/` to send message
+* `GET /api/messages/` to list all messages
 
-## Structure
+---
 
-* `utils.py`, `client.py`, `fixtures.py`: source modules
-* `test_utils.py`, `test_client.py`: test suites
+## 6. Manual Review
 
-```
-```
+Once endpoints work as expected, request a manual QA review. An auto-review runs at the deadline.
