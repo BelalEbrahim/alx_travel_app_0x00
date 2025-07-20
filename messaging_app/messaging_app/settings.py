@@ -1,17 +1,10 @@
-INSTALLED_APPS = [
-    ...,
-    'rest_framework',
-    'chats',
+# messaging_app/urls.py
+from django.contrib import admin
+from django.urls import path, include
+from rest_framework import routers
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('api/', include('chats.urls')),
+    path('api-auth/', include('rest_framework.urls', namespace='rest_framework'))
 ]
-
-REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-    ],
-    
-}
-
-AUTH_USER_MODEL = 'chats.User'  # Move this line outside of REST_FRAMEWORK

@@ -1,4 +1,4 @@
-# messaging_app/chats/serializers.py
+# chats/serializers.py
 from rest_framework import serializers
 from .models import User, Conversation, Message
 
@@ -23,33 +23,26 @@ class ConversationSerializer(serializers.ModelSerializer):
         fields = ['conversation_id', 'participants', 'created_at', 'messages']
     
     def get_messages(self, obj):
-        messages = obj.messages.all().order_by('sent_at')
+        messages = Message.objects.filter(conversation=obj).order_by('sent_at')
         return MessageSerializer(messages, many=True).data
 
 class CreateConversationSerializer(serializers.ModelSerializer):
     participants = serializers.PrimaryKeyRelatedField(
         many=True, 
         queryset=User.objects.all(),
-        write_only=True
+        pk_field=serializers.UUIDField()
     )
     
     class Meta:
         model = Conversation
         fields = ['participants']
     
-    def create(self, validated_data):
-        participants = validated_data.pop('participants')
-        conversation = Conversation.objects.create()
-        conversation.participants.set(participants)
-        return conversation
+    def validate_participants(self, value):
+        if len(value) < 2:
+            raise serializers.ValidationError("Conversation must have at least 2 participants")
+        return value
 
 class CreateMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
         fields = ['conversation', 'message_body']
-    
-    def validate_conversation(self, value):
-        # Check if current user is in conversation
-        if self.context['request'].user not in value.participants.all():
-            raise serializers.ValidationError("You are not part of this conversation")
-        return value
