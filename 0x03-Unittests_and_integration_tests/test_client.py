@@ -6,7 +6,7 @@ import unittest
 from client import GithubOrgClient
 from fixtures import TEST_PAYLOAD
 from parameterized import parameterized, parameterized_class
-from unittest.mock import patch, PropertyMock
+from unittest.mock import patch, PropertyMock, Mock
 
 
 class TestGithubOrgClient(unittest.TestCase):
@@ -37,23 +37,24 @@ class TestGithubOrgClient(unittest.TestCase):
         ):
             self.assertEqual(client._public_repos_url, 'my_url')
 
-    def test_public_repos(self):
+    @patch('client.get_json')
+    def test_public_repos(self, mock_get_json):
         """Test that public_repos returns repo names from payload."""
         payload = [
             {'name': 'repo1', 'license': {'key': 'k1'}},
             {'name': 'repo2', 'license': {'key': 'k2'}},
         ]
-        with patch('client.get_json', return_value=payload) as mock_get_json:
-            client = GithubOrgClient('org')
-            with patch.object(
-                GithubOrgClient,
-                '_public_repos_url',
-                new_callable=PropertyMock,
-                return_value='url'
-            ):
-                repos = client.public_repos()
-                self.assertEqual(repos, ['repo1', 'repo2'])
-                mock_get_json.assert_called_once_with('url')
+        mock_get_json.return_value = payload
+        client = GithubOrgClient('org')
+        with patch.object(
+            GithubOrgClient,
+            '_public_repos_url',
+            new_callable=PropertyMock,
+            return_value='url'
+        ):
+            repos = client.public_repos()
+            self.assertEqual(repos, ['repo1', 'repo2'])
+            mock_get_json.assert_called_once_with('url')
 
     @parameterized.expand([
         ({"license": {"key": "my_license"}}, "my_license", True),
@@ -81,11 +82,11 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
         mock_get = cls.get_patcher.start()
         
         # Configure mock response objects
-        mock_response_org = unittest.mock.Mock()
+        mock_response_org = Mock()
         mock_response_org.json.return_value = cls.org_payload
         mock_response_org.raise_for_status.return_value = None
         
-        mock_response_repos = unittest.mock.Mock()
+        mock_response_repos = Mock()
         mock_response_repos.json.return_value = cls.repos_payload
         mock_response_repos.raise_for_status.return_value = None
         
@@ -99,10 +100,7 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
     def test_public_repos(self):
         """Test public_repos returns expected repos without license."""
         client = GithubOrgClient('org')
-        self.assertEqual(
-            client.public_repos(),
-            self.expected_repos
-        )
+        self.assertEqual(client.public_repos(), self.expected_repos)
 
     def test_public_repos_with_license(self):
         """Test public_repos filters by license."""
