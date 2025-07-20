@@ -4,9 +4,10 @@ Unit and integration tests for client module
 """
 import unittest
 from parameterized import parameterized, parameterized_class
-from unittest.mock import patch, PropertyMock
+from unittest.mock import patch, PropertyMock, Mock
 from client import GithubOrgClient
 from fixtures import TEST_PAYLOAD
+
 
 class TestGithubOrgClient(unittest.TestCase):
     """
@@ -58,12 +59,9 @@ class TestGithubOrgClient(unittest.TestCase):
         client = GithubOrgClient("test")
         self.assertEqual(client.has_license(repo, license_key), expected)
 
-@parameterized_class([
-    {"org_payload": TEST_PAYLOAD[0][0],
-     "repos_payload": TEST_PAYLOAD[0][1],
-     "expected_repos": TEST_PAYLOAD[0][2],
-     "apache2_repos": TEST_PAYLOAD[0][3]}
-])
+
+@parameterized_class(('org_payload', 'repos_payload', 'expected_repos',
+                     'apache2_repos'), [TEST_PAYLOAD])
 class TestIntegrationGithubOrgClient(unittest.TestCase):
     """
     Integration tests for GithubOrgClient class
@@ -75,13 +73,12 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
         cls.mock_get = cls.get_patcher.start()
         
         def side_effect(url):
-            if url.endswith("/orgs/google"):
+            if url == "https://api.github.com/orgs/google":
                 return Mock(json=lambda: cls.org_payload)
-            elif url.endswith("/orgs/google/repos"):
+            elif url == cls.org_payload["repos_url"]:
                 return Mock(json=lambda: cls.repos_payload)
-            else:
-                return Mock(json=lambda: {})
-                
+            return Mock(json=lambda: {})
+            
         cls.mock_get.side_effect = side_effect
 
     @classmethod
@@ -97,7 +94,11 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
     def test_public_repos_with_license(self):
         """Test public_repos with license filter"""
         client = GithubOrgClient("google")
-        self.assertEqual(client.public_repos(license="apache-2.0"), self.apache2_repos)
+        self.assertEqual(
+            client.public_repos(license="apache-2.0"),
+            self.apache2_repos
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
