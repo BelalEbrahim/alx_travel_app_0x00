@@ -1,5 +1,5 @@
 # chats/views.py
-from rest_framework import viewsets, filters  # Added filters
+from rest_framework import viewsets, filters, status  # Added status import
 from rest_framework.response import Response
 from .models import Conversation, Message
 from .serializers import (
@@ -11,7 +11,7 @@ from .serializers import (
 
 class ConversationViewSet(viewsets.ModelViewSet):
     queryset = Conversation.objects.all()
-    filter_backends = [filters.SearchFilter]  # Added filter
+    filter_backends = [filters.SearchFilter]
     search_fields = ['participants__first_name', 'participants__last_name']
     
     def get_serializer_class(self):
@@ -22,11 +22,12 @@ class ConversationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         conversation = serializer.save()
         conversation.participants.add(self.request.user)
+        return Response(status=status.HTTP_201_CREATED)  # Use status
 
 class MessageViewSet(viewsets.ModelViewSet):
     serializer_class = MessageSerializer
     queryset = Message.objects.all()
-    filter_backends = [filters.SearchFilter]  # Added filter
+    filter_backends = [filters.SearchFilter]
     search_fields = ['message_body']
     
     def get_serializer_class(self):
@@ -36,3 +37,4 @@ class MessageViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(sender=self.request.user)
+        return Response(status=status.HTTP_201_CREATED)  # Use status
