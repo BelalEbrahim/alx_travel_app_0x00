@@ -78,19 +78,24 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Start patcher for requests.get to return fixture payloads."""
+        # Patch utils.requests.get directly
         cls.get_patcher = patch('utils.requests.get')
-        mock_get = cls.get_patcher.start()
+        cls.mock_get = cls.get_patcher.start()
         
-        # Configure mock response objects
-        mock_response_org = Mock()
-        mock_response_org.json.return_value = cls.org_payload
-        mock_response_org.raise_for_status.return_value = None
+        # Create response templates
+        cls.mock_org_response = Mock()
+        cls.mock_org_response.json.return_value = cls.org_payload
+        cls.mock_org_response.raise_for_status.return_value = None
         
-        mock_response_repos = Mock()
-        mock_response_repos.json.return_value = cls.repos_payload
-        mock_response_repos.raise_for_status.return_value = None
+        cls.mock_repos_response = Mock()
+        cls.mock_repos_response.json.return_value = cls.repos_payload
+        cls.mock_repos_response.raise_for_status.return_value = None
         
-        mock_get.side_effect = [mock_response_org, mock_response_repos]
+        # Set side effect to return responses in order
+        cls.mock_get.side_effect = [
+            cls.mock_org_response,
+            cls.mock_repos_response
+        ]
 
     @classmethod
     def tearDownClass(cls):
@@ -101,6 +106,8 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
         """Test public_repos returns expected repos without license."""
         client = GithubOrgClient('org')
         self.assertEqual(client.public_repos(), self.expected_repos)
+        # Verify two calls were made
+        self.assertEqual(self.mock_get.call_count, 2)
 
     def test_public_repos_with_license(self):
         """Test public_repos filters by license."""
@@ -109,6 +116,8 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
             client.public_repos(license='apache-2.0'),
             self.apache2_repos
         )
+        # Verify two calls were made
+        self.assertEqual(self.mock_get.call_count, 2)
 
 
 if __name__ == '__main__':
