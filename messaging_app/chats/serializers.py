@@ -9,6 +9,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 class MessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(read_only=True)
+    message_body = serializers.CharField()  # Explicit CharField
     
     class Meta:
         model = Message
@@ -43,6 +44,8 @@ class CreateConversationSerializer(serializers.ModelSerializer):
         return value
 
 class CreateMessageSerializer(serializers.ModelSerializer):
+    message_body = serializers.CharField()  # Explicit CharField
+    
     class Meta:
         model = Message
         fields = ['conversation', 'message_body']
