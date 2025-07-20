@@ -67,19 +67,29 @@ class TestGithubOrgClient(unittest.TestCase):
         )
 
 
-@parameterized_class(('org_payload', 'repos_payload', 'expected_repos', 'apache2_repos'), TEST_PAYLOAD)
+@parameterized_class(
+    ('org_payload', 'repos_payload', 'expected_repos', 'apache2_repos'),
+    TEST_PAYLOAD
+)
 class TestIntegrationGithubOrgClient(unittest.TestCase):
     """Integration tests using fixtures."""
 
     @classmethod
     def setUpClass(cls):
-        """Start patcher for get_json to return fixture payloads."""
-        cls.get_patcher = patch('client.get_json')
-        cls.mock_get_json = cls.get_patcher.start()
-        cls.mock_get_json.side_effect = [
-            cls.org_payload,
-            cls.repos_payload,
-        ]
+        """Start patcher for requests.get to return fixture payloads."""
+        cls.get_patcher = patch('utils.requests.get')
+        mock_get = cls.get_patcher.start()
+        
+        # Configure mock response objects
+        mock_response_org = unittest.mock.Mock()
+        mock_response_org.json.return_value = cls.org_payload
+        mock_response_org.raise_for_status.return_value = None
+        
+        mock_response_repos = unittest.mock.Mock()
+        mock_response_repos.json.return_value = cls.repos_payload
+        mock_response_repos.raise_for_status.return_value = None
+        
+        mock_get.side_effect = [mock_response_org, mock_response_repos]
 
     @classmethod
     def tearDownClass(cls):
