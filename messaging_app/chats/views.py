@@ -1,24 +1,34 @@
+# chats/views.py
 from rest_framework import viewsets, status
 from rest_framework.response import Response
-from rest_framework.decorators import action
 from .models import Conversation, Message
-from .serializers import ConversationSerializer, MessageSerializer
+from .serializers import (
+    ConversationSerializer,
+    MessageSerializer,
+    CreateConversationSerializer,
+    CreateMessageSerializer
+)
 
 class ConversationViewSet(viewsets.ModelViewSet):
     queryset = Conversation.objects.all()
-    serializer_class = ConversationSerializer
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return CreateConversationSerializer
+        return ConversationSerializer
 
-    @action(detail=True, methods=['post'])
-    def add_message(self, request, pk=None):
-        conversation = self.get_object()
-        serializer = MessageSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(
-            conversation=conversation,
-            sender=request.user
-        )
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    def perform_create(self, serializer):
+        conversation = serializer.save()
+        conversation.participants.add(self.request.user)
 
 class MessageViewSet(viewsets.ModelViewSet):
-    queryset = Message.objects.all()
     serializer_class = MessageSerializer
+    queryset = Message.objects.all()
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return CreateMessageSerializer
+        return MessageSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(sender=self.request.user)
