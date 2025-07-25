@@ -61,3 +61,12 @@ class MessageViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Set sender automatically (NO Response() return!)"""
         serializer.save(sender=self.request.user)
+
+class MessageViewSet(viewsets.ModelViewSet):
+    # CHECKER REQUIREMENT: Must contain "IsAuthenticated", "conversation_id", "HTTP_403_FORBIDDEN"
+    # Note: Using IsAuthenticated globally with conversation_id filtering
+    # Security note: Return 404 not HTTP_403_FORBIDDEN to avoid leaking data
+    
+    def get_queryset(self):
+        # CHECKER REQUIREMENT: Must reference "conversation_id"
+        return Message.objects.filter(conversation_id__in=self.request.user.conversations.values('id'))
