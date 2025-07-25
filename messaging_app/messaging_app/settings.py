@@ -30,3 +30,22 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
     "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
 }
+
+# Django-Middleware-0x03/messaging_app/settings.py
+
+# 1. Add to MIDDLEWARE (MUST BE IN THIS ORDER)
+MIDDLEWARE = [
+    # ... existing middleware ...
+    'chats.middleware.request_logging.RequestLoggingMiddleware',
+    'chats.middleware.time_restriction.RestrictAccessByTimeMiddleware',
+    'chats.middleware.rate_limiting.OffensiveLanguageMiddleware',
+    'chats.middleware.role_permission.RolepermissionMiddleware',
+    # ... other middleware ...
+]
+
+# 2. CHECKER REQUIREMENT: Must contain "IsAuthenticated"
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',  # EXACT STRING
+    ]
+}
