@@ -1,0 +1,83 @@
+{
+  "info": {
+    "name": "Messaging App API Test",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Get JWT Token",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\":\"user@example.com\", \"password\":\"securepass\"}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/token/",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "token", "/"]
+        }
+      }
+    },
+    {
+      "name": "2. Get Messages (Valid Auth)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8000/api/messages/?conversation=1",
+          "path": ["api", "messages", "/"]
+        }
+      }
+    },
+    {
+      "name": "3. Get Messages (Invalid Auth)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer invalid_token"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8000/api/messages/"
+        }
+      },
+      "response": [
+        {
+          "code": 401,
+          "status": "Unauthorized"
+        }
+      ]
+    },
+    {
+      "name": "4. Access Other User's Conversation",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8000/api/conversations/999/"  
+        }
+      },
+      "response": [
+        {
+          "code": 404,
+          "status": "Not Found"  
+        }
+      ]
+    }
+  ]
+}

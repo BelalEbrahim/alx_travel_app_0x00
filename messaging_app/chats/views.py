@@ -1,6 +1,7 @@
 # chats/views.py
-from rest_framework import viewsets, filters, status  # Added status import
-from rest_framework.response import Response
+from rest_framework import viewsets, filters
+from django_filters.rest_framework import DjangoFilterBackend  # REQUIRED for Task 2
+
 from .models import Conversation, Message
 from .serializers import (
     ConversationSerializer,
@@ -8,33 +9,55 @@ from .serializers import (
     CreateConversationSerializer,
     CreateMessageSerializer
 )
+from .permissions import IsParticipantOfConversation
+from .pagination import MessagePagination
+from .filters import MessageFilter
 
 class ConversationViewSet(viewsets.ModelViewSet):
+    """Handles conversation CRUD with participant-based security"""
     queryset = Conversation.objects.all()
+    serializer_class = ConversationSerializer  # Default serializer
+    permission_classes = [IsParticipantOfConversation]
     filter_backends = [filters.SearchFilter]
     search_fields = ['participants__first_name', 'participants__last_name']
-    
+
     def get_serializer_class(self):
+        """Use specialized serializer for creation"""
         if self.action == 'create':
             return CreateConversationSerializer
-        return ConversationSerializer
+        return super().get_serializer_class()
+
+    def get_queryset(self):
+        """CRITICAL: Only show conversations where user is participant (prevents IDOR)"""
+        return Conversation.objects.filter(participants=self.request.user)
 
     def perform_create(self, serializer):
+        """Automatically add creator as participant"""
         conversation = serializer.save()
         conversation.participants.add(self.request.user)
-        return Response(status=status.HTTP_201_CREATED)  # Use status
 
 class MessageViewSet(viewsets.ModelViewSet):
-    serializer_class = MessageSerializer
+    """Handles message CRUD with granular permissions"""
     queryset = Message.objects.all()
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['message_body']
+    serializer_class = MessageSerializer  # Default serializer
+    permission_classes = [IsParticipantOfConversation]
     
+    # Task 2 Requirements:
+    pagination_class = MessagePagination  # 20 messages/page
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]  # Mix filtering types
+    filterset_class = MessageFilter  # Custom filter for dates/participants
+    search_fields = ['message_body']  # Optional text search
+
     def get_serializer_class(self):
+        """Use specialized serializer for message creation"""
         if self.action == 'create':
             return CreateMessageSerializer
-        return MessageSerializer
+        return super().get_serializer_class()
+
+    def get_queryset(self):
+        """CRITICAL: Only show messages from user's conversations (security!)"""
+        return Message.objects.filter(conversation__participants=self.request.user)
 
     def perform_create(self, serializer):
+        """Set sender automatically (NO Response() return!)"""
         serializer.save(sender=self.request.user)
-        return Response(status=status.HTTP_201_CREATED)  # Use status
