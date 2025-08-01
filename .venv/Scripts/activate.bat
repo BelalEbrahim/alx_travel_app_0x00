@@ -8,7 +8,11 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
+<<<<<<< HEAD
 set VIRTUAL_ENV=c:\Users\HP\python-generators-0x00\.venv
+=======
+set VIRTUAL_ENV=C:\Users\HP\alx_travel_app\.venv
+>>>>>>> e17a9e3ed18e7253b2f30c6894abd00e0bf91764
 
 if not defined PROMPT set PROMPT=$P$G
 
